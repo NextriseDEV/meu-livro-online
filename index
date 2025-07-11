@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Livro Digital</title>
+
+    <!-- Estilos da biblioteca dFlip -->
+    <link href="https://cdn.jsdelivr.net/npm/dflip@latest/dist/dflip.min.css" rel="stylesheet" type="text/css">
+
+    <style>
+        /* Estilos para centralizar o livro na página */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 
+      Container do livro. 
+      O 'source' agora aponta para o nome de arquivo simplificado 'livro.pdf'.
+      Certifique-se de que o seu arquivo PDF foi renomeado para 'livro.pdf' antes do upload.
+    -->
+    <div class="_df_book"
+         source="livro.pdf"
+         style="width: 90vw; height: 90vh;">
+    </div>
+
+    <!-- Scripts necessários para a funcionalidade do flipbook -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@latest/dist/jquery.min.js" type="text/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dflip@latest/dist/dflip.min.js" type="text/javascript"></script>
+
+</body>
+</html>
