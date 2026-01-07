@@ -1,40 +1,364 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meu Livro Digital</title>
+    <title>Agenda de Eventos</title>
 
-    <!-- Estilos da biblioteca dFlip -->
-    <link href="https://cdn.jsdelivr.net/npm/dflip@latest/dist/dflip.min.css" rel="stylesheet" type="text/css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        /* Estilos para centralizar o livro na página */
         body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
+            background-color: #f8f9fa;
+            font-family: 'Inter', sans-serif;
+        }
+        .event-card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            border: 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .event-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        }
+        /* --- ESTILOS DE DIFERENCIAÇÃO POR AGENDA --- */
+        .event-card.source-agenda1 { border-left: 5px solid #ffc107; /* Amarelo */ }
+        .event-card.source-agenda2 { border-left: 5px solid #0d6efd; /* Azul */ }
+        .btn-agenda1 { background-color: #dc3545; border-color: #dc3545; } /* Vermelho */
+        .btn-agenda2 { background-color: #0d6efd; border-color: #0d6efd; } /* Azul */
+        
+        .event-image {
+            height: 200px;
+            object-fit: cover;
+            border-top-left-radius: 0.375rem;
+            border-top-right-radius: 0.375rem;
+        }
+        .event-date-badge {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            text-align: center;
+            line-height: 1.2;
+        }
+        .event-date-badge .day {
+            font-size: 1.5rem;
+            font-weight: bold;
+            display: block;
+        }
+        .event-date-badge .month {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            display: block;
+        }
+        .card-title {
+            font-weight: 700;
+        }
+        .card-text {
+            color: #6c757d;
+        }
+        .filter-btn-group .btn {
+            border-radius: 50rem; /* Botões arredondados */
+        }
+        /* Estilo para o campo de busca */
+        .search-container {
+            position: relative;
+        }
+        .search-icon {
+            position: absolute;
+            top: 50%;
+            left: 15px;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+        .search-input {
+            padding-left: 40px; /* Espaço para o ícone */
+            border-radius: 50rem;
         }
     </style>
 </head>
 <body>
+    <div id="root"></div>
 
-    <!-- 
-      Container do livro. 
-      O 'source' agora aponta para o nome de arquivo simplificado 'livro.pdf'.
-      Certifique-se de que o seu arquivo PDF foi renomeado para 'livro.pdf' antes do upload.
-    -->
-    <div class="_df_book"
-         source="livro.pdf"
-         style="width: 90vw; height: 90vh;">
-    </div>
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
 
-    <!-- Scripts necessários para a funcionalidade do flipbook -->
-    <script src="https://cdn.jsdelivr.net/npm/jquery@latest/dist/jquery.min.js" type="text/javascript"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dflip@latest/dist/dflip.min.js" type="text/javascript"></script>
+        // Função auxiliar para extrair imagem (Lógica de Thumbnail corrigida)
+        function getImageUrl(description) {
+            const defaultImage = 'https://cabulaagora.com.br/assets/web/images/1200x630.png';
+            
+            if (!description) return defaultImage;
 
+            // 1. Tenta encontrar um ID de arquivo do Google Drive
+            const driveIdMatch = description.match(/\/d\/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)/);
+            
+            if (driveIdMatch) {
+                const id = driveIdMatch[1] || driveIdMatch[2];
+                // Usa endpoint de thumbnail para garantir carregamento
+                return `https://drive.google.com/thumbnail?id=${id}&sz=w1000`;
+            }
+
+            // 2. Se não for drive, tenta achar jpg/png direto
+            const directMatch = description.match(/https?:\/\/[^\s"<>]+(\.jpg|\.jpeg|\.png|\.gif|\.webp)[^\s"<>]*|https:\/\/drive\.google\.com\/uc\?id=[^\s"<>]+/);
+            if (directMatch) {
+                return directMatch[0];
+            }
+
+            return defaultImage;
+        }
+
+        // Componente para exibir um único evento
+        function EventCard({ event }) {
+            const startDate = new Date(event.start.dateTime || event.start.date);
+            const day = startDate.getDate();
+            const month = startDate.toLocaleString('pt-BR', { month: 'short' }).replace('.', '');
+            const time = event.start.dateTime ? startDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Dia todo';
+
+            const description = event.description || '';
+            
+            // Usa a função inteligente para pegar a imagem
+            const imageUrl = getImageUrl(description);
+
+            // REGRA DO BOTÃO: Só exibe se encontrar o link específico do GitHub
+            const specificLinkMatch = description.match(/https:\/\/adsabrasil-embuguacu\.github\.io\/[^\s"<>]+/);
+            
+            // Limpa a descrição para exibição (remove HTML e URLs)
+            const cleanDescription = description
+                .replace(/<a[^>]*>.*?<\/a>/g, '')
+                .replace(/<br\s*\/?>/g, ' ')
+                .replace(/https?:\/\/[^\s"<>]+/g, '')
+                .trim();
+
+            return (
+                <div className="col">
+                    <div className={`card h-100 event-card source-${event.source}`}>
+                        <div className="position-relative">
+                            <img 
+                                src={imageUrl} 
+                                className="card-img-top event-image" 
+                                alt={event.summary} 
+                                onError={(e) => { 
+                                    if(e.target.src !== 'https://placehold.co/600x400/dc3545/ffffff?text=Imagem+Inv%C3%A1lida') {
+                                        console.log("Erro ao carregar imagem, usando fallback.");
+                                        e.target.onerror = null; 
+                                        e.target.src='https://placehold.co/600x400/dc3545/ffffff?text=Imagem+Inv%C3%A1lida'; 
+                                    }
+                                }}
+                            />
+                            <div className="event-date-badge">
+                                <span className="day">{day}</span>
+                                <span className="month">{month}</span>
+                            </div>
+                        </div>
+                        <div className="card-body">
+                            <h5 className="card-title">{event.summary}</h5>
+                            <p className="card-text">
+                                <i className="material-icons align-middle" style={{fontSize: '1rem'}}>schedule</i> {time}
+                            </p>
+                            {cleanDescription && <p className="card-text small">{cleanDescription}</p>}
+                        </div>
+                        
+                        {/* Renderiza botão APENAS se o link específico for encontrado */}
+                        {specificLinkMatch && (
+                            <div className="card-footer bg-white border-0 pb-3">
+                                {/* Mantém a classe dinâmica btn-${event.source} para respeitar as cores das agendas */}
+                                <a href={specificLinkMatch[0]} target="_blank" rel="noopener noreferrer" className={`btn w-100 text-white btn-${event.source}`}>
+                                    Inscreva-se
+                                </a>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+        
+        // Componente principal da aplicação
+        function App() {
+            const [allEvents, setAllEvents] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            
+            const [dateFilter, setDateFilter] = useState('all');
+            const [typeFilter, setTypeFilter] = useState('all');
+            const [sourceFilter, setSourceFilter] = useState('all');
+            const [searchTerm, setSearchTerm] = useState(''); // Estado para busca
+
+            const apiKey = 'AIzaSyDgNvI7f1dgeFLHLTWeHTAweSeTsJpl7ws';
+            
+            const calendars = [
+                { id: 'adsasecretaria.embuguacu@gmail.com', source: 'agenda1', name: 'Agenda 1' },
+                { id: '9969791c02881fad4e0c7ef331b63bf960fd945b6714896e55c6dadb6c7f3e78@group.calendar.google.com', source: 'agenda2', name: 'Agenda 2' }
+            ];
+            
+            useEffect(() => {
+                fetchEvents();
+            }, []);
+
+            const fetchEvents = () => {
+                setLoading(true);
+                setError(null);
+                const now = new Date().toISOString();
+                const promises = calendars.map(cal => {
+                    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?key=${apiKey}&timeMin=${now}&singleEvents=true&orderBy=startTime&showDeleted=false`;
+                    return fetch(url).then(res => res.json()).then(data => ({ ...data, source: cal.source }));
+                });
+
+                Promise.all(promises)
+                    .then(results => {
+                        let fetchedEvents = [];
+                        let apiError = null;
+                        results.forEach(result => {
+                            if (result.items) {
+                                // Garante que a propriedade source seja passada para cada item
+                                const eventsWithSource = result.items.map(item => ({ ...item, source: result.source }));
+                                fetchedEvents = fetchedEvents.concat(eventsWithSource);
+                            } else if (result.error) {
+                                apiError = result.error.message;
+                            }
+                        });
+                        
+                        if(apiError) {
+                            setError(`Erro: ${apiError}. Verifique a chave de API e se as agendas são públicas.`);
+                        } else {
+                            fetchedEvents.sort((a, b) => new Date(a.start.dateTime || a.start.date) - new Date(b.start.dateTime || b.start.date));
+                            setAllEvents(fetchedEvents);
+                        }
+                    })
+                    .catch(err => setError("Falha na comunicação com a API."))
+                    .finally(() => setLoading(false));
+            };
+
+            const filteredEvents = useMemo(() => {
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const startOfWeek = new Date(today);
+                startOfWeek.setDate(today.getDate() - today.getDay());
+                const endOfWeek = new Date(startOfWeek);
+                endOfWeek.setDate(startOfWeek.getDate() + 6);
+                
+                const searchLower = searchTerm.toLowerCase();
+
+                return allEvents.filter(event => {
+                    // Filtro de Agenda (Source)
+                    if (sourceFilter !== 'all' && event.source !== sourceFilter) return false;
+
+                    const eventDate = new Date(event.start.dateTime || event.start.date);
+                    const eventStartDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+
+                    // Filtro de Data
+                    const dateMatch = 
+                        (dateFilter === 'all') ||
+                        (dateFilter === 'today' && eventStartDate.getTime() === today.getTime()) ||
+                        (dateFilter === 'week' && eventStartDate >= startOfWeek && eventStartDate <= endOfWeek) ||
+                        (dateFilter === 'month' && eventDate.getMonth() === now.getMonth() && eventDate.getFullYear() === now.getFullYear());
+                    
+                    if (!dateMatch) return false;
+
+                    // Preparação para Busca e Filtro de Tipo (Título + Descrição)
+                    const title = (event.summary || '').toLowerCase();
+                    const description = (event.description || '').toLowerCase();
+                    const textForTypeCheck = title + ' ' + description;
+
+                    // Filtro de Busca (Search Bar) - Focado no título
+                    if (searchLower && !title.includes(searchLower)) {
+                        return false;
+                    }
+
+                    const isPaid = /paga|ingresso|valor|r\$/i.test(textForTypeCheck);
+                    const isFree = /gratuita|grátis|free|entrada franca/i.test(textForTypeCheck);
+                    
+                    // Filtro de Tipo (Dropdown)
+                    const typeMatch =
+                        (typeFilter === 'all') ||
+                        (typeFilter === 'paid' && isPaid) ||
+                        (typeFilter === 'free' && isFree) ||
+                        (typeFilter === 'open' && !isPaid && !isFree);
+                    
+                    return typeMatch;
+                });
+            }, [allEvents, dateFilter, typeFilter, sourceFilter, searchTerm]);
+
+            return (
+                <div className="container py-4">
+                    <div className="text-center mb-4">
+                        <h1 className="fw-bold">Nossa Agenda</h1>
+                        <p className="text-muted">Fique por dentro dos próximos eventos.</p>
+                    </div>
+
+                    <div className="card mb-4">
+                        <div className="card-body">
+                            {/* Linha da Busca */}
+                            <div className="row mb-3">
+                                <div className="col-12">
+                                    <div className="search-container">
+                                        <i className="material-icons search-icon">search</i>
+                                        <input 
+                                            type="text" 
+                                            className="form-control search-input" 
+                                            placeholder="Buscar evento por nome..." 
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Linha dos Filtros */}
+                            <div className="row g-3 align-items-center">
+                                <div className="col-12 col-lg">
+                                    <div className="btn-group w-100 filter-btn-group" role="group">
+                                        <button className={`btn ${dateFilter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setDateFilter('all')}>Todos</button>
+                                        <button className={`btn ${dateFilter === 'today' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setDateFilter('today')}>Hoje</button>
+                                        <button className={`btn ${dateFilter === 'week' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setDateFilter('week')}>Esta Semana</button>
+                                        <button className={`btn ${dateFilter === 'month' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setDateFilter('month')}>Este Mês</button>
+                                    </div>
+                                </div>
+                                <div className="col-12 col-md-auto">
+                                    <select className="form-select" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                                        <option value="all">Todos os Tipos</option>
+                                        <option value="free">Inscrição Gratuita</option>
+                                        <option value="paid">Inscrição Paga</option>
+                                        <option value="open">Livre</option>
+                                    </select>
+                                </div>
+                                <div className="col-12 col-md-auto">
+                                    <select className="form-select" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
+                                        <option value="all">Todas as Agendas</option>
+                                        <option value="agenda1">Agenda Campo</option>
+                                        <option value="agenda2">Agenda Local</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {loading && <div className="text-center"><div className="spinner-border text-primary"></div></div>}
+                    {error && <div className="alert alert-danger text-center">{error}</div>}
+                    {!loading && !error && filteredEvents.length === 0 && (
+                        <div className="text-center text-muted mt-4">Nenhum evento encontrado para os filtros selecionados.</div>
+                    )}
+
+                    <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                        {filteredEvents.map(event => <EventCard key={event.id} event={event} />)}
+                    </div>
+                </div>
+            );
+        }
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
 </body>
 </html>
